@@ -1,0 +1,50 @@
+## ==========================================
+## 1. Visual Studio - Archivos de usuario y temporales
+## ==========================================
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.dbmdl
+*.opendb
+
+## ==========================================
+## 2. Archivos temporales de compilación
+## ==========================================
+[Dd]ebug/
+[Dd]ebugPublic/
+x64/Debug/
+x86/Debug/
+ipch/
+*.obj
+*.pch
+*.idb
+*.pdb
+*.tlog
+*.log
+*.ilk
+*.tmp
+*.temp
+
+## ==========================================
+## 3. Carpetas de salida intermedias (obj)
+## ==========================================
+obj/
+[Bb]in/Debug/
+
+## ==========================================
+## 4. PERMITIR EXPLÍCITAMENTE LA CARPETA RELEASE
+## ==========================================
+# Se asegura de no ignorar Release ni sus ejecutables/librerías
+![Rr]elease/
+![Rr]elease/**
+!x64/Release/
+!x64/Release/**
+!x86/Release/
+!x86/Release/**
+!bin/Release/
+!bin/Release/**
+!*.exe
+!*.dll
