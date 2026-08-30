@@ -1,67 +1,22 @@
-## ==========================================
-## 1. Archivos temporales y de usuario de Visual Studio
-## ==========================================
-.vs/
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
-*.userprefs
-*.dbmdl
-*.opendb
-ipch/
+# 1. Ignorar absolutamente todo por defecto
+*
+.*
 
-## ==========================================
-## 2. Compilación y temporales (Debug e intermedios)
-## ==========================================
-[Dd]ebug/
-[Dd]ebugPublic/
-x64/Debug/
-x86/Debug/
-obj/
-bin/Debug/
-*.obj
-*.pch
-*.idb
-*.pdb
-*.tlog
-*.log
-*.ilk
-*.tmp
-*.temp
-*.recipe
-*.iobj
-*.ipdb
-*.lastbuildstate
+# 2. Permitir el propio archivo .gitignore y README
+!.gitignore
+!README.md
 
-## ==========================================
-## 3. Librerías externas de terceros
-## ==========================================
-# Ignora carpetas pesadas de include completas de librerías (ej. assimp, glm) si solo pide código propio
-# include/
-
-## ==========================================
-## 4. PERMITIR EXPLÍCITAMENTE ARCHIVOS SOLICITADOS
-## ==========================================
-# Permitir carpetas Release y sus ejecutables
-![Rr]elease/
-![Rr]elease/**
-!x64/Release/
-!x64/Release/**
-!x86/Release/
-!x86/Release/**
-!bin/Release/
-!bin/Release/**
-!*.exe
-!*.dll
-
-# Permitir archivos de código y proyecto
+# 3. Permitir únicamente fuentes C/C++
 !*.cpp
 !*.h
 !*.hpp
-!*.sln
-!*.vcxproj
-!*.vcxproj.filters
 
-include/
-lib/
+# 4. Permitir carpetas Release y sus contenidos (ejecutables)
+![Rr]elease/
+![Rr]elease/**
+!x64/
+!x64/[Rr]elease/
+!x64/[Rr]elease/**
+!x86/
+!x86/[Rr]elease/
+!x86/[Rr]elease/**
