@@ -62,3 +62,6 @@ bin/Debug/
 !*.sln
 !*.vcxproj
 !*.vcxproj.filters
+
+include/
+lib/
