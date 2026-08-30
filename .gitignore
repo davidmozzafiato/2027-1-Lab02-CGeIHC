@@ -1,22 +1,22 @@
-# 1. Ignorar absolutamente todo por defecto
+# 1. Ignorar todo por defecto
 *
 .*
 
-# 2. Permitir el propio archivo .gitignore y README
+# 2. Permitir gitignore y README
 !.gitignore
 !README.md
 
-# 3. Permitir únicamente fuentes C/C++
+# 3. Permitir unicamentes fuentes C/C++
 !*.cpp
 !*.h
 !*.hpp
 
-# 4. Permitir carpetas Release y sus contenidos (ejecutables)
+# 4. Permitir carpetas Release y UNICAMENTE el archivo .exe
 ![Rr]elease/
-![Rr]elease/**
+![Rr]elease/*.exe
 !x64/
 !x64/[Rr]elease/
-!x64/[Rr]elease/**
+!x64/[Rr]elease/*.exe
 !x86/
 !x86/[Rr]elease/
-!x86/[Rr]elease/**
+!x86/[Rr]elease/*.exe
