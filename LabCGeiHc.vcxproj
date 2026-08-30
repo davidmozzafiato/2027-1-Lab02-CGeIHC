@@ -147,8 +147,8 @@
     <ClInclude Include="Window.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="mainbase.cpp" />
     <ClCompile Include="Mesh.cpp" />
+    <ClCompile Include="segundo_main.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Window.cpp" />
   </ItemGroup>
