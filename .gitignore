@@ -1,5 +1,5 @@
 ## ==========================================
-## 1. Visual Studio - Archivos de usuario y temporales
+## 1. Archivos temporales y de usuario de Visual Studio
 ## ==========================================
 .vs/
 *.suo
@@ -9,15 +9,17 @@
 *.userprefs
 *.dbmdl
 *.opendb
+ipch/
 
 ## ==========================================
-## 2. Archivos temporales de compilación
+## 2. Compilación y temporales (Debug e intermedios)
 ## ==========================================
 [Dd]ebug/
 [Dd]ebugPublic/
 x64/Debug/
 x86/Debug/
-ipch/
+obj/
+bin/Debug/
 *.obj
 *.pch
 *.idb
@@ -27,17 +29,21 @@ ipch/
 *.ilk
 *.tmp
 *.temp
+*.recipe
+*.iobj
+*.ipdb
+*.lastbuildstate
 
 ## ==========================================
-## 3. Carpetas de salida intermedias (obj)
+## 3. Librerías externas de terceros
 ## ==========================================
-obj/
-[Bb]in/Debug/
+# Ignora carpetas pesadas de include completas de librerías (ej. assimp, glm) si solo pide código propio
+# include/
 
 ## ==========================================
-## 4. PERMITIR EXPLÍCITAMENTE LA CARPETA RELEASE
+## 4. PERMITIR EXPLÍCITAMENTE ARCHIVOS SOLICITADOS
 ## ==========================================
-# Se asegura de no ignorar Release ni sus ejecutables/librerías
+# Permitir carpetas Release y sus ejecutables
 ![Rr]elease/
 ![Rr]elease/**
 !x64/Release/
@@ -48,3 +54,11 @@ obj/
 !bin/Release/**
 !*.exe
 !*.dll
+
+# Permitir archivos de código y proyecto
+!*.cpp
+!*.h
+!*.hpp
+!*.sln
+!*.vcxproj
+!*.vcxproj.filters
