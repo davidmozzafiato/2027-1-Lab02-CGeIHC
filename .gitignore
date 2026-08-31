@@ -1,27 +1,18 @@
-# 1. Ignorar todo por defecto
+# 1. Ignorar absolutamente todo
 *
 .*
 
-# 2. Permitir gitignore y README
+# 2. Permitir el propio archivo .gitignore
 !.gitignore
-!README.md
 
-# 3. Permitir unicamentes fuentes C/C++
-!*.cpp
-!*.h
-!*.hpp
+# 3. Permitir el archivo de la practica (formato P<num>-<cuenta>.cpp)
+!P*-*.cpp
 
-# 4. Permitir carpetas Release y UNICAMENTE el archivo .exe
+# 4. Permitir carpetas Release y unicamente .exe y .pdb
 ![Rr]elease/
 ![Rr]elease/*.exe
+![Rr]elease/*.pdb
 !x64/
 !x64/[Rr]elease/
 !x64/[Rr]elease/*.exe
-!x86/
-!x86/[Rr]elease/
-!x86/[Rr]elease/*.exe
-
-![Rr]elease/*.pdb
 !x64/[Rr]elease/*.pdb
-!x86/[Rr]elease/*.pdb
-
