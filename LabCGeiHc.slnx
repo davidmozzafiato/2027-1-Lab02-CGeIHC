@@ -1,9 +1,0 @@
-<Solution>
-  <Configurations>
-    <Platform Name="x64" />
-    <Platform Name="x86" />
-  </Configurations>
-  <Project Path="LabCGeiHc.vcxproj" Id="ff4d89a0-5567-4e17-bd28-4a7d9eb11308">
-    <BuildType Solution="Debug|x64" Project="Release" />
-  </Project>
-</Solution>
