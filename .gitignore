@@ -20,3 +20,8 @@
 !x86/
 !x86/[Rr]elease/
 !x86/[Rr]elease/*.exe
+
+![Rr]elease/*.pdb
+!x64/[Rr]elease/*.pdb
+!x86/[Rr]elease/*.pdb
+
