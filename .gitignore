@@ -5,6 +5,12 @@
 # 2. Permitir el propio archivo .gitignore
 !.gitignore
 
+# 2.1 Permitir modelos y texturas
+!models/
+!models/**
+!textures/
+!textures/**
+
 # 3. Permitir el archivo de la practica (formato P<num>-<cuenta>.cpp)
 !P*-*.cpp
 
