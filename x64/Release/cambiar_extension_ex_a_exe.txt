@@ -1,0 +1,3 @@
+Con motivo de evitar que Classroom me vuelva a marcar mi ZIP como 
+virus, le cambié la extensión a mi .exe a .ex, solo falta agregarle
+la 'e' para que funcione de nuevo.
