@@ -49,7 +49,7 @@ int Window::Initialise()
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-	mainWindow = glfwCreateWindow(width, height, "Ejercicio Practica 10 - Animacion por Keyframes", NULL, NULL);
+	mainWindow = glfwCreateWindow(width, height, "Practica 10: Animacion Por Keyframes", NULL, NULL);
 	if (!mainWindow)
 	{
 		printf("Error al crear la ventana de GLFW");

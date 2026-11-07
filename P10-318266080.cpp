@@ -36,36 +36,50 @@ Model Planeta_M;
 Model Vehiculo_M;
 Model BizarrePlane_M;
 Model Holocron_M;
-Model Rocket_M;
+
+Model RocketFase1_M;
+Model RocketFase2_M;
+Model RocketCapsula_M;
 
 HolocronAnimationController holocronAnim;
 float tiempoAnimacionHolocron = 0.0f;
 glm::vec3 posBaseHolocron = glm::vec3(0.0f, 60.0f, 0.0f);
 
-// ----------------------------------------------------------------------------
-// SISTEMA DE KEYFRAMES Y CONTROL MANUAL DEL COHETE POR TECLADO
-// ----------------------------------------------------------------------------
+const float ALTURA_SUELO = 0.0f;
+
 struct KeyFrameCohete {
-    glm::vec3 posicion;
-    float anguloZ;
+    glm::vec3 posBase;
+    float rotZ;
+    glm::vec3 offsetFase1;
+    glm::vec3 offsetFase2;
+    glm::vec3 offsetCapsula;
+    bool estaOrbitando;
 };
 
 std::vector<KeyFrameCohete> keyframesCohete;
 int keyframeActualIdx = 0;
 float tiempoKeyframe = 0.0f;
-float duracionPorKeyframe = 1.2f; // Segundos por cuadro
+float duracionPorKeyframe = 1.5f;
 bool animacionCoheteActiva = false;
+bool animacionConcluida = false;
 
-// Posición y rotación interactiva / animada del cohete
 glm::vec3 posCohete = glm::vec3(80.0f, 10.0f, -40.0f);
 float anguloInclinacionCohete = 0.0f;
+glm::vec3 offsetFase1Actual = glm::vec3(0.0f);
+glm::vec3 offsetFase2Actual = glm::vec3(0.0f);
+glm::vec3 offsetCapsulaActual = glm::vec3(0.0f);
+bool modoOrbitaCapsula = false;
 
-// Banderas de control de rebote de tecla para evitar pulsaciones múltiples
+int subPiezaSeleccionada = 0;
+float anguloOrbitaCapsula = 0.0f;
+
 bool teclaKPresionada = false;
 bool teclaLPresionada = false;
 bool teclaCPresionada = false;
 bool teclaEspacioPresionada = false;
 bool teclaRPresionada = false;
+bool teclaTabPresionada = false;
+bool teclaBPresionada = false;
 
 Model SateliteCuerpo_M;
 Model SatelitePanelIzquierdo_M;
@@ -128,69 +142,75 @@ void CreateShaders()
     shaderList.push_back(*shader1);
 }
 
-// ----------------------------------------------------------------------------
-// FUNCIONES I/O KEYFRAMES EN ARCHIVO TXT
-// ----------------------------------------------------------------------------
 void GuardarKeyframesEnTXT(const std::string& rutaArchivo)
 {
     std::ofstream archivo(rutaArchivo, std::ios::trunc);
-    if (!archivo.is_open())
-    {
-        std::cout << "[ERROR] No se pudo abrir para escribir: " << rutaArchivo << std::endl;
-        return;
-    }
+    if (!archivo.is_open()) return;
 
-    archivo << "# Posicion (X Y Z) AnguloZ\n";
+    archivo << "# PosBase(X Y Z) RotZ Off1(X Y Z) Off2(X Y Z) OffCaps(X Y Z) Orbitando\n";
     for (size_t i = 0; i < keyframesCohete.size(); ++i)
     {
-        archivo << keyframesCohete[i].posicion.x << " "
-            << keyframesCohete[i].posicion.y << " "
-            << keyframesCohete[i].posicion.z << " "
-            << keyframesCohete[i].anguloZ << "\n";
+        const auto& kf = keyframesCohete[i];
+        archivo << kf.posBase.x << " " << kf.posBase.y << " " << kf.posBase.z << " "
+            << kf.rotZ << " "
+            << kf.offsetFase1.x << " " << kf.offsetFase1.y << " " << kf.offsetFase1.z << " "
+            << kf.offsetFase2.x << " " << kf.offsetFase2.y << " " << kf.offsetFase2.z << " "
+            << kf.offsetCapsula.x << " " << kf.offsetCapsula.y << " " << kf.offsetCapsula.z << " "
+            << (kf.estaOrbitando ? 1 : 0) << "\n";
     }
-
     archivo.close();
-    std::cout << "[INFO] " << keyframesCohete.size() << " Keyframes guardados en " << rutaArchivo << std::endl;
+    std::cout << "[INFO] Keyframes guardados en " << rutaArchivo << std::endl;
 }
 
 void CargarKeyframesDesdeTXT(const std::string& rutaArchivo)
 {
     keyframesCohete.clear();
     std::ifstream archivo(rutaArchivo);
-    if (!archivo.is_open())
-    {
-        std::cout << "[WARN] No se pudo abrir el archivo: " << rutaArchivo << std::endl;
-        return;
-    }
+    if (!archivo.is_open()) return;
 
     std::string linea;
     while (std::getline(archivo, linea))
     {
         if (linea.empty() || linea[0] == '#' || linea[0] == '/') continue;
-
         std::stringstream ss(linea);
         KeyFrameCohete kf;
-        if (ss >> kf.posicion.x >> kf.posicion.y >> kf.posicion.z >> kf.anguloZ)
+        int orb = 0;
+        if (ss >> kf.posBase.x >> kf.posBase.y >> kf.posBase.z
+            >> kf.rotZ
+            >> kf.offsetFase1.x >> kf.offsetFase1.y >> kf.offsetFase1.z
+            >> kf.offsetFase2.x >> kf.offsetFase2.y >> kf.offsetFase2.z
+            >> kf.offsetCapsula.x >> kf.offsetCapsula.y >> kf.offsetCapsula.z
+            >> orb)
         {
+            kf.estaOrbitando = (orb == 1);
             keyframesCohete.push_back(kf);
         }
     }
-
     archivo.close();
-    std::cout << "[INFO] " << keyframesCohete.size() << " Keyframes cargados exitosamente desde " << rutaArchivo << std::endl;
+    animacionConcluida = false;
+    std::cout << "[INFO] " << keyframesCohete.size() << " Keyframes cargados." << std::endl;
 }
 
 void AgregarKeyframeActual()
 {
-    keyframesCohete.push_back({ posCohete, anguloInclinacionCohete });
-    std::cout << "[KEYFRAME AGREGADO #" << keyframesCohete.size() << "] Pos: ("
-        << posCohete.x << ", " << posCohete.y << ", " << posCohete.z
-        << ") RotZ: " << anguloInclinacionCohete << "°" << std::endl;
+    keyframesCohete.push_back({ posCohete, anguloInclinacionCohete, offsetFase1Actual, offsetFase2Actual, offsetCapsulaActual, modoOrbitaCapsula });
+    std::cout << "[KEYFRAME #" << keyframesCohete.size() << " GUARDADO]" << std::endl;
 }
 
 void ActualizarAnimacionCohete(float dt)
 {
-    if (!animacionCoheteActiva || keyframesCohete.size() < 2) return;
+    if (!animacionCoheteActiva || keyframesCohete.empty() || animacionConcluida) return;
+
+    if (keyframesCohete.size() == 1)
+    {
+        posCohete = keyframesCohete[0].posBase;
+        anguloInclinacionCohete = keyframesCohete[0].rotZ;
+        offsetFase1Actual = keyframesCohete[0].offsetFase1;
+        offsetFase2Actual = keyframesCohete[0].offsetFase2;
+        offsetCapsulaActual = keyframesCohete[0].offsetCapsula;
+        modoOrbitaCapsula = keyframesCohete[0].estaOrbitando;
+        return;
+    }
 
     tiempoKeyframe += dt;
     float t = tiempoKeyframe / duracionPorKeyframe;
@@ -198,55 +218,55 @@ void ActualizarAnimacionCohete(float dt)
     if (t >= 1.0f)
     {
         tiempoKeyframe = 0.0f;
-        keyframeActualIdx++;
-        if (keyframeActualIdx >= static_cast<int>(keyframesCohete.size()) - 1)
+
+        if (keyframeActualIdx < static_cast<int>(keyframesCohete.size()) - 2)
         {
-            keyframeActualIdx = 0; // Reiniciar loop de animación
+            keyframeActualIdx++;
+            t = 0.0f;
         }
-        t = 0.0f;
+        else
+        {
+            const KeyFrameCohete& kfFinal = keyframesCohete.back();
+            posCohete = kfFinal.posBase;
+            anguloInclinacionCohete = kfFinal.rotZ;
+            offsetFase1Actual = kfFinal.offsetFase1;
+            offsetFase2Actual = kfFinal.offsetFase2;
+            offsetCapsulaActual = kfFinal.offsetCapsula;
+            modoOrbitaCapsula = kfFinal.estaOrbitando;
+
+            animacionConcluida = true;
+            return;
+        }
     }
 
-    int idxSiguiente = (keyframeActualIdx + 1) % keyframesCohete.size();
+    int idxSiguiente = keyframeActualIdx + 1;
     const KeyFrameCohete& kfOrigen = keyframesCohete[keyframeActualIdx];
     const KeyFrameCohete& kfDestino = keyframesCohete[idxSiguiente];
 
-    posCohete = glm::mix(kfOrigen.posicion, kfDestino.posicion, t);
-    anguloInclinacionCohete = glm::mix(kfOrigen.anguloZ, kfDestino.anguloZ, t);
+    posCohete = glm::mix(kfOrigen.posBase, kfDestino.posBase, t);
+    anguloInclinacionCohete = glm::mix(kfOrigen.rotZ, kfDestino.rotZ, t);
+    offsetFase1Actual = glm::mix(kfOrigen.offsetFase1, kfDestino.offsetFase1, t);
+    offsetFase2Actual = glm::mix(kfOrigen.offsetFase2, kfDestino.offsetFase2, t);
+    offsetCapsulaActual = glm::mix(kfOrigen.offsetCapsula, kfDestino.offsetCapsula, t);
+    modoOrbitaCapsula = kfDestino.estaOrbitando;
 }
 
-// ----------------------------------------------------------------------------
-// CARGA Y FILTRADO DE WAYPOINTS DE PISTA
-// ----------------------------------------------------------------------------
 std::vector<glm::vec3> CargarWaypointsDesdeTXT(const std::string& rutaArchivo)
 {
     std::vector<glm::vec3> pts;
     std::ifstream archivo(rutaArchivo);
-
-    if (!archivo.is_open())
-    {
-        std::cout << "Error al abrir el archivo de waypoints: " << rutaArchivo << std::endl;
-        return pts;
-    }
+    if (!archivo.is_open()) return pts;
 
     std::string linea;
     while (std::getline(archivo, linea))
     {
-        if (linea.empty() || linea[0] == '/' || linea[0] == '#')
-            continue;
-
-        float x, y, z;
-        for (char& c : linea)
-        {
-            if (c == ',') c = ' ';
-        }
+        if (linea.empty() || linea[0] == '/' || linea[0] == '#') continue;
+        for (char& c : linea) { if (c == ',') c = ' '; }
 
         std::stringstream ss(linea);
-        if (ss >> x >> y >> z)
-        {
-            pts.push_back(glm::vec3(x, y, z));
-        }
+        float x, y, z;
+        if (ss >> x >> y >> z) pts.push_back(glm::vec3(x, y, z));
     }
-
     archivo.close();
     return pts;
 }
@@ -254,7 +274,6 @@ std::vector<glm::vec3> CargarWaypointsDesdeTXT(const std::string& rutaArchivo)
 std::vector<glm::vec3> UnirYFiltrarPista(const std::vector<glm::vec3>& puntosEntrada, float distMinima = 1.0f)
 {
     if (puntosEntrada.empty()) return {};
-
     std::vector<glm::vec3> resultado;
     resultado.push_back(puntosEntrada[0]);
 
@@ -262,15 +281,9 @@ std::vector<glm::vec3> UnirYFiltrarPista(const std::vector<glm::vec3>& puntosEnt
     {
         glm::vec3 pUltimo = resultado.back();
         glm::vec3 pNuevo = puntosEntrada[i];
-
         float distXZ = glm::distance(glm::vec2(pUltimo.x, pUltimo.z), glm::vec2(pNuevo.x, pNuevo.z));
-
-        if (distXZ >= distMinima)
-        {
-            resultado.push_back(pNuevo);
-        }
+        if (distXZ >= distMinima) resultado.push_back(pNuevo);
     }
-
     return resultado;
 }
 
@@ -296,7 +309,10 @@ int main()
     Planeta_M.LoadModel("Models/Planeta2.glb");
     Vehiculo_M.LoadModel("Models/HaloGhost.glb");
     BizarrePlane_M.LoadModel("Models/BizarrePlane.glb");
-    Rocket_M.LoadModel("Models/Rocket.glb");
+
+    RocketFase1_M.LoadModel("Models/RocketFase1.glb");
+    RocketFase2_M.LoadModel("Models/RocketFase2.glb");
+    RocketCapsula_M.LoadModel("Models/RocketCapsula.glb");
 
     Holocron_M.LoadModel("Models/Holocron.glb");
     holocronAnim.LoadAnimation("Models/Holocron.glb");
@@ -307,33 +323,15 @@ int main()
     SateliteAntena_M.LoadModel("Models/SateliteAntena.glb");
 
     std::vector<glm::vec3> waypointsCrudos = CargarWaypointsDesdeTXT("vertices_pista_opengl.txt");
+    waypoints = waypointsCrudos.empty() ? std::vector<glm::vec3>{ glm::vec3(10.60f, 25.0f, 60.0f) } : UnirYFiltrarPista(waypointsCrudos, 1.2f);
 
-    if (waypointsCrudos.empty())
-    {
-        waypoints = {
-            glm::vec3(10.60f, 25.0f, 60.0f),
-            glm::vec3(15.60f, 25.0f, 65.0f),
-            glm::vec3(20.60f, 25.0f, 70.0f)
-        };
-    }
-    else
-    {
-        waypoints = UnirYFiltrarPista(waypointsCrudos, 1.2f);
-    }
+    if (!waypoints.empty()) { alturaYActual = waypoints[0].y; alturaObjetivo = waypoints[0].y; }
 
-    if (!waypoints.empty())
-    {
-        alturaYActual = waypoints[0].y;
-        alturaObjetivo = waypoints[0].y;
-    }
-
-    std::vector<std::string> skyboxFaces;
-    skyboxFaces.push_back("Textures/Skybox/space_rt.png");
-    skyboxFaces.push_back("Textures/Skybox/space_lf.png");
-    skyboxFaces.push_back("Textures/Skybox/space_dn.png");
-    skyboxFaces.push_back("Textures/Skybox/space_up.png");
-    skyboxFaces.push_back("Textures/Skybox/space_bk.png");
-    skyboxFaces.push_back("Textures/Skybox/space_ft.png");
+    std::vector<std::string> skyboxFaces = {
+        "Textures/Skybox/space_rt.png", "Textures/Skybox/space_lf.png",
+        "Textures/Skybox/space_dn.png", "Textures/Skybox/space_up.png",
+        "Textures/Skybox/space_bk.png", "Textures/Skybox/space_ft.png"
+    };
     skybox = new Skybox(skyboxFaces);
 
     Material_brillante = Material(2.0f, 64);
@@ -344,19 +342,6 @@ int main()
 
     glm::mat4 projection = glm::perspective(45.0f, (GLfloat)mainWindow.getBufferWidth() / mainWindow.getBufferHeight(), 0.1f, 1000.0f);
 
-    std::cout << "\n=======================================================\n";
-    std::cout << " CONTROLES TECLADO PARA KEYFRAMES DE COHETE:\n";
-    std::cout << " [FLECHAS ARRIBA/ABAJO]   : Mover Cohete en Y (+ / -)\n";
-    std::cout << " [FLECHAS DER/IZQ]      : Mover Cohete en X (+ / -)\n";
-    std::cout << " [TECLAS O / P]         : Mover Cohete en Z (+ / -)\n";
-    std::cout << " [TECLAS U / I]         : Rotar Cohete en Z (Inclinacion)\n";
-    std::cout << " [TECLA K]              : Agregar Keyframe Actual a lista\n";
-    std::cout << " [TECLA L]              : Guardar lista a keyframescohete.txt\n";
-    std::cout << " [TECLA C]              : Cargar lista desde keyframescohete.txt\n";
-    std::cout << " [ESPACIO]              : Iniciar / Pausar Animacion Keyframes\n";
-    std::cout << " [TECLA R]              : Resetear lista de Keyframes\n";
-    std::cout << "=======================================================\n\n";
-
     while (!mainWindow.getShouldClose())
     {
         GLfloat now = glfwGetTime();
@@ -365,69 +350,75 @@ int main()
 
         bool* keys = mainWindow.getsKeys();
 
-        // --------------------------------------------------------------------
-        // LÓGICA DE CONTROL MANUAL DE POSICIÓN/ROTACIÓN DEL COHETE POR TECLADO
-        // --------------------------------------------------------------------
+        if (keys[GLFW_KEY_TAB] && !teclaTabPresionada)
+        {
+            subPiezaSeleccionada = (subPiezaSeleccionada + 1) % 4;
+            teclaTabPresionada = true;
+        }
+        else if (!keys[GLFW_KEY_TAB]) teclaTabPresionada = false;
+
         if (!animacionCoheteActiva)
         {
-            float velCoheteTeclado = 25.0f * deltaTime;
-            if (keys[GLFW_KEY_UP])    posCohete.y += velCoheteTeclado;
-            if (keys[GLFW_KEY_DOWN])  posCohete.y -= velCoheteTeclado;
-            if (keys[GLFW_KEY_RIGHT]) posCohete.x += velCoheteTeclado;
-            if (keys[GLFW_KEY_LEFT])  posCohete.x -= velCoheteTeclado;
-            if (keys[GLFW_KEY_O])     posCohete.z += velCoheteTeclado;
-            if (keys[GLFW_KEY_P])     posCohete.z -= velCoheteTeclado;
+            float velTeclado = 25.0f * deltaTime;
+            glm::vec3 des = glm::vec3(0.0f);
+            if (keys[GLFW_KEY_UP])    des.y += velTeclado;
+            if (keys[GLFW_KEY_DOWN])  des.y -= velTeclado;
+            if (keys[GLFW_KEY_RIGHT]) des.x += velTeclado;
+            if (keys[GLFW_KEY_LEFT])  des.x -= velTeclado;
+            if (keys[GLFW_KEY_O])     des.z += velTeclado;
+            if (keys[GLFW_KEY_P])     des.z -= velTeclado;
 
-            if (keys[GLFW_KEY_U])     anguloInclinacionCohete += 45.0f * deltaTime;
-            if (keys[GLFW_KEY_I])     anguloInclinacionCohete -= 45.0f * deltaTime;
+            if (subPiezaSeleccionada == 0)      posCohete += des;
+            else if (subPiezaSeleccionada == 1) offsetFase1Actual += des;
+            else if (subPiezaSeleccionada == 2) offsetFase2Actual += des;
+            else if (subPiezaSeleccionada == 3) offsetCapsulaActual += des;
+
+            if (keys[GLFW_KEY_U]) anguloInclinacionCohete += 45.0f * deltaTime;
+            if (keys[GLFW_KEY_I]) anguloInclinacionCohete -= 45.0f * deltaTime;
+
+            if (keys[GLFW_KEY_B] && !teclaBPresionada)
+            {
+                modoOrbitaCapsula = !modoOrbitaCapsula;
+                teclaBPresionada = true;
+            }
+            else if (!keys[GLFW_KEY_B]) teclaBPresionada = false;
         }
 
-        // AGREGAR KEYFRAME (K)
-        if (keys[GLFW_KEY_K] && !teclaKPresionada)
-        {
-            AgregarKeyframeActual();
-            teclaKPresionada = true;
-        }
+        if (keys[GLFW_KEY_K] && !teclaKPresionada) { AgregarKeyframeActual(); teclaKPresionada = true; }
         else if (!keys[GLFW_KEY_K]) teclaKPresionada = false;
 
-        // GUARDAR A ARCHIVO TXT (L)
-        if (keys[GLFW_KEY_L] && !teclaLPresionada)
-        {
-            GuardarKeyframesEnTXT("keyframescohete.txt");
-            teclaLPresionada = true;
-        }
+        if (keys[GLFW_KEY_L] && !teclaLPresionada) { GuardarKeyframesEnTXT("keyframescohete.txt"); teclaLPresionada = true; }
         else if (!keys[GLFW_KEY_L]) teclaLPresionada = false;
 
-        // CARGAR DESDE ARCHIVO TXT (C)
-        if (keys[GLFW_KEY_C] && !teclaCPresionada)
-        {
-            CargarKeyframesDesdeTXT("keyframescohete.txt");
-            teclaCPresionada = true;
-        }
+        if (keys[GLFW_KEY_C] && !teclaCPresionada) { CargarKeyframesDesdeTXT("keyframescohete.txt"); teclaCPresionada = true; }
         else if (!keys[GLFW_KEY_C]) teclaCPresionada = false;
 
-        // REPRODUCIR / PAUSAR ANIMACIÓN (ESPACIO)
         if (keys[GLFW_KEY_SPACE] && !teclaEspacioPresionada)
         {
             animacionCoheteActiva = !animacionCoheteActiva;
             tiempoKeyframe = 0.0f;
             keyframeActualIdx = 0;
-            std::cout << "[ANIMACION COHETE] Estado: " << (animacionCoheteActiva ? "REPRODUCIENDO" : "PAUSADA") << std::endl;
+            animacionConcluida = false;
             teclaEspacioPresionada = true;
         }
         else if (!keys[GLFW_KEY_SPACE]) teclaEspacioPresionada = false;
 
-        // RESETEAR KEYFRAMES (R)
         if (keys[GLFW_KEY_R] && !teclaRPresionada)
         {
             keyframesCohete.clear();
             animacionCoheteActiva = false;
-            std::cout << "[INFO] Lista de Keyframes limpiada." << std::endl;
+            animacionConcluida = false;
             teclaRPresionada = true;
         }
         else if (!keys[GLFW_KEY_R]) teclaRPresionada = false;
 
-        // Movimiento del vehículo en la pista
+        ActualizarAnimacionCohete(deltaTime);
+
+        if (modoOrbitaCapsula)
+        {
+            anguloOrbitaCapsula += 25.0f * deltaTime;
+        }
+
         progreso += velocidad * deltaTime;
         if (progreso >= 1.0f)
         {
@@ -435,24 +426,26 @@ int main()
             puntoActual = (puntoActual + 1) % waypoints.size();
         }
 
-        int numPuntos = (int)waypoints.size();
+        int numPuntos = static_cast<int>(waypoints.size());
         int p0 = (puntoActual - 1 + numPuntos) % numPuntos;
         int p1 = puntoActual;
         int p2 = (puntoActual + 1) % numPuntos;
         int p3 = (puntoActual + 2) % numPuntos;
 
-        glm::vec3 posInterpolada = glm::catmullRom(waypoints[p0], waypoints[p1], waypoints[p2], waypoints[p3], progreso);
+        glm::vec3 posInterpolada = glm::catmullRom(waypoints[p0], waypoints[p1], waypoints[p2], waypoints[p3], static_cast<float>(progreso));
 
         float progresoDelta = progreso + 0.03f;
         glm::vec3 posSiguiente;
+
         if (progresoDelta < 1.0f)
         {
-            posSiguiente = glm::catmullRom(waypoints[p0], waypoints[p1], waypoints[p2], waypoints[p3], progresoDelta);
+            posSiguiente = glm::catmullRom(waypoints[p0], waypoints[p1], waypoints[p2], waypoints[p3], static_cast<float>(progresoDelta));
         }
         else
         {
             int p0_n = p1, p1_n = p2, p2_n = p3, p3_n = (puntoActual + 3) % numPuntos;
-            posSiguiente = glm::catmullRom(waypoints[p0_n], waypoints[p1_n], waypoints[p2_n], waypoints[p3_n], progresoDelta - 1.0f);
+            float tExceso = static_cast<float>(progresoDelta - 1.0f);
+            posSiguiente = glm::catmullRom(waypoints[p0_n], waypoints[p1_n], waypoints[p2_n], waypoints[p3_n], tExceso);
         }
 
         glm::vec3 dir = posSiguiente - posInterpolada;
@@ -462,18 +455,13 @@ int main()
         if (glm::length(dir) > 0.0001f)
         {
             dir = glm::normalize(dir);
-            glm::vec3 derecha = glm::cross(dir, glm::vec3(0.0f, 1.0f, 0.0f));
-            if (glm::length(derecha) > 0.0001f)
-            {
-                derecha = glm::normalize(derecha);
-                posOffset += derecha * offsetLateral;
-            }
+            glm::vec3 derecha = glm::normalize(glm::cross(dir, glm::vec3(0.0f, 1.0f, 0.0f)));
+            posOffset += derecha * offsetLateral;
 
             float anguloObjetivo = glm::degrees(atan2(dir.x, dir.z));
             float diff = anguloObjetivo - anguloYawSuave;
             while (diff < -180.0f) diff += 360.0f;
             while (diff > 180.0f)  diff -= 360.0f;
-
             anguloYawSuave += diff * 10.0f * deltaTime;
         }
 
@@ -483,98 +471,56 @@ int main()
             float nuevaAlturaRaycast = 0.0f;
             if (Planeta_M.GetRayIntersectionY(posOffset.x, posOffset.z, nuevaAlturaRaycast))
             {
-                if (std::abs(nuevaAlturaRaycast - posOffset.y) < 20.0f)
-                {
-                    alturaObjetivo = nuevaAlturaRaycast;
-                }
-                else
-                {
-                    alturaObjetivo = posOffset.y;
-                }
+                alturaObjetivo = (std::abs(nuevaAlturaRaycast - posOffset.y) < 20.0f) ? nuevaAlturaRaycast : posOffset.y;
             }
-            else
-            {
-                alturaObjetivo = posOffset.y;
-            }
+            else { alturaObjetivo = posOffset.y; }
             contadorFrames = 0;
         }
 
         float alturaDeseada = alturaObjetivo + offsetAlturaVehiculo;
         alturaYActual = glm::mix(alturaYActual, alturaDeseada, 0.1f);
-
         float maxVariacionY = 5.0f * deltaTime;
         alturaYActual = glm::clamp(alturaYActual, alturaYActual - maxVariacionY, alturaYActual + maxVariacionY);
-
         glm::vec3 posVehiculo = glm::vec3(posOffset.x, alturaYActual, posOffset.z);
 
-        // Órbita y rotación del satélite
         anguloPanelSolar += 30.0f * deltaTime;
         anguloAntena += 60.0f * deltaTime;
         anguloOrbita += velocidadOrbita * deltaTime;
         if (anguloOrbita >= 360.0f) anguloOrbita -= 360.0f;
-        if (anguloOrbita < 0.0f)    anguloOrbita += 360.0f;
 
-        // Orientación y posición del avión
         tiempoAcrobacia += deltaTime * 0.8f;
         glm::vec3 posAvion = CalcularPosicionAvion(tiempoAcrobacia);
         glm::vec3 posAvionFutura = CalcularPosicionAvion(tiempoAcrobacia + 0.02f);
         glm::vec3 dirAvion = glm::normalize(posAvionFutura - posAvion);
 
         glm::mat4 matOrientacionAvion(1.0f);
-
         if (glm::length(dirAvion) > 0.001f)
         {
-            glm::vec3 upRef = glm::vec3(0.0f, 1.0f, 0.0f);
-            glm::vec3 right = glm::normalize(glm::cross(dirAvion, upRef));
+            glm::vec3 right = glm::normalize(glm::cross(dirAvion, glm::vec3(0.0f, 1.0f, 0.0f)));
             glm::vec3 up = glm::cross(right, dirAvion);
-
             matOrientacionAvion = glm::mat4(
-                glm::vec4(right, 0.0f),
-                glm::vec4(up, 0.0f),
-                glm::vec4(-dirAvion, 0.0f),
-                glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)
+                glm::vec4(right, 0.0f), glm::vec4(up, 0.0f),
+                glm::vec4(-dirAvion, 0.0f), glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)
             );
         }
-        glm::mat4 rotacionBaseAvion = glm::mat4(1.0f);
-        rotacionBaseAvion = glm::rotate(rotacionBaseAvion, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        glm::mat4 rotacionBaseAvion = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         rotacionBaseAvion = glm::rotate(rotacionBaseAvion, glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        glm::mat4 modelAvion = glm::translate(glm::mat4(1.0f), posAvion) * matOrientacionAvion * rotacionBaseAvion;
 
-        glm::mat4 modelAvion(1.0f);
-        modelAvion = glm::translate(modelAvion, posAvion);
-        modelAvion = modelAvion * matOrientacionAvion;
-        modelAvion = modelAvion * rotacionBaseAvion;
-
-        // Actualizar Keyframes del cohete si la animación está encendida
-        ActualizarAnimacionCohete(deltaTime);
-
-        // Sistema de partículas de humo
         tasaEmisionHumo += deltaTime;
         if (tasaEmisionHumo >= 0.02f)
         {
             tasaEmisionHumo = 0.0f;
-
-            glm::vec3 offsetMotorIzq = glm::vec3(-1.2f, 0.0f, -2.5f);
-            glm::vec3 offsetMotorDer = glm::vec3(1.2f, 0.0f, -2.5f);
-
-            glm::vec3 posHumoIzq = glm::vec3(modelAvion * glm::vec4(offsetMotorIzq, 1.0f));
-            glm::vec3 posHumoDer = glm::vec3(modelAvion * glm::vec4(offsetMotorDer, 1.0f));
-
-            humoParticulas.push_back({ posHumoIzq, 0.0f, 2.0f, 0.8f });
-            humoParticulas.push_back({ posHumoDer, 0.0f, 2.0f, 0.8f });
+            humoParticulas.push_back({ glm::vec3(modelAvion * glm::vec4(-1.2f, 0.0f, -2.5f, 1.0f)), 0.0f, 2.0f, 0.8f });
+            humoParticulas.push_back({ glm::vec3(modelAvion * glm::vec4(1.2f, 0.0f, -2.5f, 1.0f)), 0.0f, 2.0f, 0.8f });
         }
 
         for (auto it = humoParticulas.begin(); it != humoParticulas.end(); )
         {
             it->vidaActual += deltaTime;
             it->tamano += deltaTime * 0.5f;
-            if (it->vidaActual >= it->vidaMaxima)
-            {
-                it = humoParticulas.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
+            if (it->vidaActual >= it->vidaMaxima) it = humoParticulas.erase(it);
+            else ++it;
         }
 
         glfwPollEvents();
@@ -584,10 +530,7 @@ int main()
         glClearColor(0.0f, 0.0f, 0.02f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        if (skybox != nullptr)
-        {
-            skybox->DrawSkybox(camera.calculateViewMatrix(), projection);
-        }
+        if (skybox) skybox->DrawSkybox(camera.calculateViewMatrix(), projection);
 
         shaderList[0].UseShader();
         uniformModel = shaderList[0].GetModelLocation();
@@ -604,112 +547,124 @@ int main()
         glUniform3f(uniformEyePosition, camera.getCameraPosition().x, camera.getCameraPosition().y, camera.getCameraPosition().z);
 
         shaderList[0].SetDirectionalLight(&mainLight);
-
         glm::vec2 toffset(0.0f, 0.0f);
         glUniform2fv(uniformTextureOffset, 1, glm::value_ptr(toffset));
         glm::vec3 color(1.0f, 1.0f, 1.0f);
         glUniform3fv(uniformColor, 1, glm::value_ptr(color));
         Material_brillante.UseMaterial(uniformSpecularIntensity, uniformShininess);
 
-        // Render del Planeta
         glm::mat4 modelMapa(1.0f);
         modelMapa = glm::translate(modelMapa, centroPlaneta);
-        modelMapa = glm::rotate(modelMapa, rotacionMapaX * toRadians, glm::vec3(1.0f, 0.0f, 0.0f));
-        modelMapa = glm::rotate(modelMapa, rotacionMapaY * toRadians, glm::vec3(0.0f, 1.0f, 0.0f));
-        modelMapa = glm::scale(modelMapa, glm::vec3(1.0f, 1.0f, 1.0f));
-
         glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(modelMapa));
         Planeta_M.RenderModel();
 
-        // Render del Vehículo
         glm::mat4 modelVehiculo(1.0f);
         modelVehiculo = glm::translate(modelVehiculo, posVehiculo);
         modelVehiculo = glm::rotate(modelVehiculo, glm::radians(anguloYawSuave), glm::vec3(0.0f, 1.0f, 0.0f));
         modelVehiculo = glm::rotate(modelVehiculo, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         modelVehiculo = glm::rotate(modelVehiculo, glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         modelVehiculo = glm::scale(modelVehiculo, glm::vec3(2.0f, 2.0f, 2.0f));
-
         glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(modelVehiculo));
         Vehiculo_M.RenderModel();
 
-        // Render del Satélite
         float radOrb = glm::radians(anguloOrbita);
         glm::vec3 posLocalOrbita(radioOrbita * cos(radOrb), 0.0f, radioOrbita * sin(radOrb));
         glm::mat4 matInclinacion = glm::rotate(glm::mat4(1.0f), glm::radians(inclinacionOrbita), glm::vec3(1.0f, 0.0f, 0.0f));
         glm::vec3 posSatelite = centroPlaneta + glm::vec3(matInclinacion * glm::vec4(posLocalOrbita, 1.0f));
 
         glm::mat4 modelSatelitePadre(1.0f);
-        modelSatelitePadre = glm::translate(modelSatelitePadre, posSatelite);
-        modelSatelitePadre = modelSatelitePadre * matInclinacion;
+        modelSatelitePadre = glm::translate(modelSatelitePadre, posSatelite) * matInclinacion;
         modelSatelitePadre = glm::rotate(modelSatelitePadre, -radOrb + glm::radians(giroSatelite), glm::vec3(0.0f, 1.0f, 0.0f));
         modelSatelitePadre = glm::rotate(modelSatelitePadre, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        modelSatelitePadre = glm::scale(modelSatelitePadre, glm::vec3(escalaSatelite, escalaSatelite, escalaSatelite));
+        modelSatelitePadre = glm::scale(modelSatelitePadre, glm::vec3(escalaSatelite));
 
         glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(modelSatelitePadre));
         SateliteCuerpo_M.RenderModel();
 
-        glm::mat4 modelPanelIzq = modelSatelitePadre;
-        modelPanelIzq = glm::rotate(modelPanelIzq, glm::radians(anguloPanelSolar), glm::vec3(1.0f, 0.0f, 0.0f));
+        glm::mat4 modelPanelIzq = glm::rotate(modelSatelitePadre, glm::radians(anguloPanelSolar), glm::vec3(1.0f, 0.0f, 0.0f));
         modelPanelIzq = glm::rotate(modelPanelIzq, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(modelPanelIzq));
         SatelitePanelIzquierdo_M.RenderModel();
 
-        glm::mat4 modelPanelDer = modelSatelitePadre;
-        modelPanelDer = glm::rotate(modelPanelDer, glm::radians(-anguloPanelSolar), glm::vec3(1.0f, 0.0f, 0.0f));
+        glm::mat4 modelPanelDer = glm::rotate(modelSatelitePadre, glm::radians(-anguloPanelSolar), glm::vec3(1.0f, 0.0f, 0.0f));
         modelPanelDer = glm::rotate(modelPanelDer, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(modelPanelDer));
         SatelitePanelDerecho_M.RenderModel();
 
-        glm::mat4 modelAntena = modelSatelitePadre;
-        modelAntena = glm::rotate(modelAntena, glm::radians(anguloAntena), glm::vec3(0.0f, 0.0f, 1.0f));
+        glm::mat4 modelAntena = glm::rotate(modelSatelitePadre, glm::radians(anguloAntena), glm::vec3(0.0f, 0.0f, 1.0f));
         glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(modelAntena));
         SateliteAntena_M.RenderModel();
 
-        // Render del Avión
         glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(modelAvion));
         BizarrePlane_M.RenderModel();
 
-        // Render del Holocrón
         tiempoAnimacionHolocron += deltaTime;
         glm::mat4 matAnimadaHolocron = holocronAnim.GetNodeTransform(tiempoAnimacionHolocron);
-
-        glm::mat4 modelHolocron(1.0f);
-        modelHolocron = glm::translate(modelHolocron, posBaseHolocron);
-        modelHolocron = modelHolocron * matAnimadaHolocron;
-        modelHolocron = glm::scale(modelHolocron, glm::vec3(4.0f, 4.0f, 4.0f));
-
+        glm::mat4 modelHolocron = glm::translate(glm::mat4(1.0f), posBaseHolocron) * matAnimadaHolocron;
+        modelHolocron = glm::scale(modelHolocron, glm::vec3(4.0f));
         glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(modelHolocron));
         Holocron_M.RenderModel();
 
-        // RENDER DEL COHETE (KEYFRAMES / CONTROL TECLADO)
-        glm::mat4 modelRocket(1.0f);
-        modelRocket = glm::translate(modelRocket, posCohete);
-        modelRocket = glm::rotate(modelRocket, glm::radians(anguloInclinacionCohete), glm::vec3(0.0f, 0.0f, 1.0f));
-        modelRocket = glm::rotate(modelRocket, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        modelRocket = glm::scale(modelRocket, glm::vec3(3.0f, 3.0f, 3.0f));
+        glm::mat4 modelCoheteBase(1.0f);
+        modelCoheteBase = glm::translate(modelCoheteBase, posCohete);
+        modelCoheteBase = glm::rotate(modelCoheteBase, glm::radians(anguloInclinacionCohete), glm::vec3(0.0f, 0.0f, 1.0f));
+        modelCoheteBase = glm::rotate(modelCoheteBase, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        modelCoheteBase = glm::scale(modelCoheteBase, glm::vec3(3.0f, 3.0f, 3.0f));
 
-        glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(modelRocket));
-        Rocket_M.RenderModel();
+        glm::vec3 posGlobalFase1 = posCohete + offsetFase1Actual;
+        if (posGlobalFase1.y <= ALTURA_SUELO) posGlobalFase1.y = ALTURA_SUELO;
 
-        // Render de Partículas de Humo
+        glm::mat4 modelFase1(1.0f);
+        modelFase1 = glm::translate(modelFase1, posGlobalFase1);
+        modelFase1 = glm::rotate(modelFase1, glm::radians(anguloInclinacionCohete), glm::vec3(0.0f, 0.0f, 1.0f));
+        modelFase1 = glm::rotate(modelFase1, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        modelFase1 = glm::scale(modelFase1, glm::vec3(3.0f, 3.0f, 3.0f));
+
+        glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(modelFase1));
+        RocketFase1_M.RenderModel();
+
+        glm::vec3 posGlobalFase2 = posCohete + offsetFase2Actual;
+        if (posGlobalFase2.y <= ALTURA_SUELO) posGlobalFase2.y = ALTURA_SUELO;
+
+        glm::mat4 modelFase2(1.0f);
+        modelFase2 = glm::translate(modelFase2, posGlobalFase2);
+        modelFase2 = glm::rotate(modelFase2, glm::radians(anguloInclinacionCohete), glm::vec3(0.0f, 0.0f, 1.0f));
+        modelFase2 = glm::rotate(modelFase2, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        modelFase2 = glm::scale(modelFase2, glm::vec3(3.0f, 3.0f, 3.0f));
+
+        glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(modelFase2));
+        RocketFase2_M.RenderModel();
+
+        glm::mat4 modelCapsula(1.0f);
+        if (modoOrbitaCapsula)
+        {
+            modelCapsula = glm::translate(modelCapsula, centroPlaneta);
+            modelCapsula = glm::rotate(modelCapsula, glm::radians(anguloOrbitaCapsula), glm::vec3(0.0f, 1.0f, 0.0f));
+            modelCapsula = glm::translate(modelCapsula, glm::vec3(220.0f, 90.0f, 0.0f));
+            modelCapsula = glm::rotate(modelCapsula, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+            modelCapsula = glm::scale(modelCapsula, glm::vec3(3.0f, 3.0f, 3.0f));
+        }
+        else
+        {
+            modelCapsula = glm::translate(modelCoheteBase, offsetCapsulaActual);
+        }
+
+        glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(modelCapsula));
+        RocketCapsula_M.RenderModel();
+
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
         for (const auto& p : humoParticulas)
         {
             float alpha = 1.0f - (p.vidaActual / p.vidaMaxima);
             glm::vec3 colorHumo = glm::vec3(0.85f, 0.85f, 0.90f) * alpha;
-
             glUniform3fv(uniformColor, 1, glm::value_ptr(colorHumo));
 
-            glm::mat4 modelHumo(1.0f);
-            modelHumo = glm::translate(modelHumo, p.posicion);
+            glm::mat4 modelHumo = glm::translate(glm::mat4(1.0f), p.posicion);
             modelHumo = glm::scale(modelHumo, glm::vec3(p.tamano));
-
             glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(modelHumo));
             Vehiculo_M.RenderModel();
         }
-
         glDisable(GL_BLEND);
 
         glUseProgram(0);
@@ -717,6 +672,5 @@ int main()
     }
 
     if (skybox) delete skybox;
-
     return 0;
 }
